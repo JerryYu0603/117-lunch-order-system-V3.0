@@ -43,10 +43,15 @@ export default function Home() {
     if (!error && data) setOrders(data);
   }, []);
 
-  // 讀取最新設定
+  // 讀取最新設定（自動延用上一筆設定，免除每日重新設定）
   const fetchSettings = useCallback(async () => {
-    const today = new Date().toISOString().split('T')[0];
-    const { data } = await supabase.from('daily_settings').select('*').eq('date', today).maybeSingle();
+    const { data } = await supabase
+      .from('daily_settings')
+      .select('*')
+      .order('date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     if (data) {
       setSettings({
         announcement: data.announcement,

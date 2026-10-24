@@ -18,9 +18,15 @@ export default function Admin() {
 
   const navigate = useNavigate();
 
+  // 讀取最新設定（讓管理員進後台時能看到目前的設定內容）
   const fetchSettings = useCallback(async () => {
-    const today = new Date().toISOString().split('T')[0];
-    const { data } = await supabase.from('daily_settings').select('*').eq('date', today).single();
+    const { data } = await supabase
+      .from('daily_settings')
+      .select('*')
+      .order('date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     if (data) {
       setAnnouncement(data.announcement || '');
       setIg(data.ig_account || '');
