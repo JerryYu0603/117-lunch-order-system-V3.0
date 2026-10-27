@@ -43,7 +43,7 @@ export default function Home() {
     if (!error && data) setOrders(data);
   }, []);
 
-  // 讀取最新設定（自動延用上一筆設定，免除每日重新設定）
+  // 讀取最新設定與檢查截止時間
   const fetchSettings = useCallback(async () => {
     const { data } = await supabase
       .from('daily_settings')
@@ -60,6 +60,7 @@ export default function Home() {
       });
     }
 
+    // 檢查後端 10:20 截止狀態
     const { data: cutoffData } = await supabase.rpc('is_order_cutoff');
     setIsCutoff(!!cutoffData);
   }, []);
@@ -81,30 +82,25 @@ export default function Home() {
       }
     });
 
-    // 🌟 強化版 Realtime 訂閱設定
+    // 🌟 1. Realtime 即時廣播
     const channel = supabase
       .channel('orders_realtime_channel')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        (payload) => {
-          console.log('收到訂單變更廣播：', payload);
-          fetchOrders(); // 收到任何訂單新增/修改/刪除，立即重新獲取
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'daily_settings' },
-        () => {
-          fetchSettings();
-        }
-      )
-      .subscribe((status) => {
-        console.log('Realtime 連線狀態：', status);
-      });
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchOrders();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_settings' }, () => {
+        fetchSettings();
+      })
+      .subscribe();
+
+    // 🌟 2. 自動輪詢計時器：每 10 秒檢查一次時間，確保 10:20 一到畫面主動鎖定
+    const timer = setInterval(() => {
+      fetchSettings();
+    }, 10000);
 
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(timer);
     };
   }, [navigate, fetchOrders, fetchSettings]);
 
@@ -239,6 +235,7 @@ export default function Home() {
                 <div className="flex items-center gap-3">
                   <input type="radio" name="meal" value={meal} disabled={isCutoff} checked={selectedMeal === meal} onChange={(e) => setSelectedMeal(e.target.value)} className="w-5 h-5 text-blue-600" />
                   <span className="font-bold text-lg">{meal} 餐</span>
+                  <span className="text-sm text-slate-500">(85 元)</span>
                 </div>
                 <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full">已 {getMealCount(meal)} 人選</span>
               </label>
